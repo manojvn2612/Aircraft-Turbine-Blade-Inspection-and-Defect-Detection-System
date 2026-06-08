@@ -1,0 +1,170 @@
+
+============================================================
+[2026-05-11 23:13:43.854567] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:13:49.647685] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:13:55.174971] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:00.742694] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:06.330275] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:11.910683] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:17.451448] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:23.262742] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:28.797508] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:34.540043] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:40.352326] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:46.264422] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:51.861325] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:14:57.853253] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:15:03.912989] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:15:09.694812] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+
+============================================================
+[2026-05-11 23:15:15.400934] Starting cam_server.py
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\cam_server.py", line 287, in <module>
+    print(f"[CamServer] Starting on :{PORT}  |  captures \u2192 {SNAP_BASE}")
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>

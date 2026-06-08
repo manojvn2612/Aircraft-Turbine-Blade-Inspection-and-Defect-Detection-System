@@ -1,0 +1,32 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Using 8 default classes
+Device        : cpu
+Data root     : C:\Users\admin\Documents\BFL_Inspection\main_server\retrain_data
+Defective     : 46
+Retrain queue : 0
+Epochs=50  Batch=4  LR=0.0003  Patience=10
+Num classes   : 8
+Output model  : C:\Users\admin\Documents\BFL_Inspection\main_server\hr_net_retrained.pth
+  [collect] C:\Users\admin\Documents\BFL_Inspection\main_server\retrain_data\defective\images: 46 trainable images
+  [collect] C:\Users\admin\Documents\BFL_Inspection\main_server\retrain_data\retrain\images: 0 trainable images
+Total images on disk : 46
+Trainable (annotated): 46
+Split — Total: 46 | Train: 36 | Val: 10
+Train batches: 9 | Val batches: 3
+Fine-tuning from C:\Users\admin\Documents\BFL_Inspection\main_server\hr_net.pth (missing=0, unexpected=0)
+Model ready.
+Loss / optimizer ready.
+
+TRAINING STARTED
+
+Epoch 1/50 | train=0.5370 | val=0.3467 << BEST SAVED  (patience reset)
+Traceback (most recent call last):
+  File "C:\Users\admin\Documents\BFL_Inspection\main_server\BFL_retrain.py", line 488, in <module>
+    loss.backward()
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\site-packages\torch\_tensor.py", line 626, in backward
+    torch.autograd.backward(
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\site-packages\torch\autograd\__init__.py", line 347, in backward
+    _engine_run_backward(
+  File "C:\Users\admin\anaconda3\envs\mainenv\lib\site-packages\torch\autograd\graph.py", line 823, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+KeyboardInterrupt
