@@ -11,3 +11,6 @@ __pycache__/
 uvchamsdk.20250722/
 labelstudio*/
 *.json
+/storage/**
+body_server/
+main_server/

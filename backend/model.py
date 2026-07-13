@@ -441,114 +441,7 @@ def mask_to_color(mask):
 
     return color_mask
 
-def validation():
-    
-    model = _get_models("hrnet_new")[1]
-    def compute_hrnet_iou(pred, target, threshold=0.15):
-        # Ensure pred and target are on the same device
-        pred = pred.to(target.device)
-
-        pred = (torch.sigmoid(pred) > threshold).float()
-
-        ious = []
-        for c in range(pred.shape[1]): # Iterate over classes
-            p = pred[:, c].contiguous().view(pred.size(0), -1) # Flatten each class mask per batch
-            t = target[:, c].contiguous().view(target.size(0), -1) # Flatten each class mask per batch
-
-            intersection = (p * t).sum(dim=1) # Sum intersection over flattened pixels for each image in batch
-            union = (p + t).clamp(0, 1).sum(dim=1) # Sum union over flattened pixels for each image in batch
-
-            # Handle cases where union is zero to avoid division by zero
-            iou = torch.where(union == 0, torch.tensor(1.0).to(target.device), intersection / union)
-            ious.extend(iou.cpu().numpy().tolist())
-
-        return np.array(ious)
-
-    def compute_hrnet_precision_recall(pred, target, threshold=0.15):
-        # Ensure pred and target are on the same device
-        pred = pred.to(target.device)
-
-        pred = (torch.sigmoid(pred) > threshold).float()
-
-        precisions = []
-        recs = []
-        for c in range(pred.shape[1]): # Iterate over classes
-            p = pred[:, c].contiguous().view(pred.size(0), -1)
-            t = target[:, c].contiguous().view(target.size(0), -1)
-
-            tp = (p * t).sum(dim=1)
-            fp = ((1 - t) * p).sum(dim=1)
-            fn = ((1 - p) * t).sum(dim=1)
-
-            # Precision: TP / (TP + FP)
-            precision = torch.where((tp + fp) == 0, torch.tensor(1.0).to(target.device), tp / (tp + fp))
-            precisions.extend(precision.cpu().numpy().tolist())
-
-            # Recall: TP / (TP + FN)
-            recall = torch.where((tp + fn) == 0, torch.tensor(1.0).to(target.device), tp / (tp + fn))
-            recs.extend(recall.cpu().numpy().tolist())
-
-        return np.array(precisions), np.array(recs)
-
-
-    # Reload the model and validation loader if not already available in scope
-    # (Assuming `model`, `val_ds`, `device`, `NUM_CLASSES` are defined in previous cells)
-
-
-    # Load the saved HRNet model weights
-    # model.load_state_dict(torch.load("/content/drive/MyDrive/BFL/Main_models/hr_net.pth", map_location=device))
-    # model.to(device)
-    model.eval() # Set model to evaluation mode
-
-    val_loader = DataLoader(val_ds, batch_size=4)
-
-    all_ious = []
-    all_precisions = []
-    all_recalls = []
-
-    print("\nStarting HRNet accuracy evaluation...")
-
-    with torch.no_grad():
-        for imgs, masks in val_loader:
-            imgs, masks = imgs.to(device), masks.to(device)
-            out = model(imgs)
-            batch_ious = compute_hrnet_iou(out, masks, threshold=0.5) # Using the same threshold as visualize
-            batch_precisions, batch_recalls = compute_hrnet_precision_recall(out, masks, threshold=0.15)
-            all_ious.extend(batch_ious)
-            all_precisions.extend(batch_precisions)
-            all_recalls.extend(batch_recalls)
-
-    # Reshape metrics to be (num_images, NUM_CLASSES)
-    all_ious_reshaped = np.array(all_ious).reshape(-1, NUM_CLASSES)
-    all_precisions_reshaped = np.array(all_precisions).reshape(-1, NUM_CLASSES)
-    all_recalls_reshaped = np.array(all_recalls).reshape(-1, NUM_CLASSES)
-
-    # Calculate mean IoU for each class
-    mean_iou_per_class = np.nanmean(all_ious_reshaped, axis=0) # Use nanmean to handle potential NaN values
-    overall_mIoU = np.nanmean(mean_iou_per_class) # Calculate mean of class IoUs
-
-    # Calculate mean Precision and Recall for each class
-    mean_precision_per_class = np.nanmean(all_precisions_reshaped, axis=0)
-    mean_recall_per_class = np.nanmean(all_recalls_reshaped, axis=0)
-
-    print("\n--- HRNet Evaluation Results ---")
-    print("Mean IoU per class:")
-    for i, iou in enumerate(mean_iou_per_class):
-        # Assuming CLASS_NAMES are available from the UNet part, if not, generalize
-        class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
-        print(f"  {class_name}: {iou:.4f}")
-    print(f"Overall Mean Intersection over Union (mIoU): {overall_mIoU:.4f}")
-
-    print("\nMean Precision per class:")
-    for i, precision in enumerate(mean_precision_per_class):
-        class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
-        print(f"  {class_name}: {precision:.4f}")
-
-    print("\nMean Recall per class:")
-    for i, recall in enumerate(mean_recall_per_class):
-        class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
-        print(f"  {class_name}: {recall:.4f}")
-def train_hrnet_model(epochs = 10,):
+def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
     from torch.utils.data import DataLoader
     models = _get_models()[1]
     train_transform, val_transform = transform()
@@ -561,7 +454,7 @@ def train_hrnet_model(epochs = 10,):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = models.to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+    optimizer = torch.optim.AdamW(model.parameters(),lr=lr)
 
     best_val_loss = float('inf')
     patience = 10
@@ -601,7 +494,7 @@ def train_hrnet_model(epochs = 10,):
         train_losses_history.append(train_loss)
         val_losses_history.append(val_loss)
 
-        print(f"Epoch {epoch} Train Loss: {train_loss:.4f} Val Loss: {val_loss:.4f}")
+        # print(f"Epoch {epoch} Train Loss: {train_loss:.4f} Val Loss: {val_loss:.4f}")
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -612,11 +505,124 @@ def train_hrnet_model(epochs = 10,):
             if counter >= patience:
                 print(f"Early stopping after {patience} epochs without improvement.")
                 break
-        
-            
+    # threshold = 0.5
+    def validation():
+    # val_ds = val_ds   = YOLOSegDataset(os.path.join(os.path.join(STORAGE_DIR,RETRAIN_DIR),"images","val"), os.path.join(os.path.join(STORAGE_DIR,RETRAIN_DIR),"labels","val"), img_size=512, transform=val_transform)
+        # model = _get_models()[1]
+        def compute_hrnet_iou(pred, target, threshold=0.5):
+            # Ensure pred and target are on the same device
+            pred = pred.to(target.device)
+
+            pred = (torch.sigmoid(pred) > threshold).float()
+
+            ious = []
+            for c in range(pred.shape[1]): # Iterate over classes
+                p = pred[:, c].contiguous().view(pred.size(0), -1) # Flatten each class mask per batch
+                t = target[:, c].contiguous().view(target.size(0), -1) # Flatten each class mask per batch
+
+                intersection = (p * t).sum(dim=1) # Sum intersection over flattened pixels for each image in batch
+                union = (p + t).clamp(0, 1).sum(dim=1) # Sum union over flattened pixels for each image in batch
+
+                # Handle cases where union is zero to avoid division by zero
+                iou = torch.where(union == 0, torch.tensor(1.0).to(target.device), intersection / union)
+                ious.extend(iou.cpu().numpy().tolist())
+
+            return np.array(ious)
+
+        def compute_hrnet_precision_recall(pred, target, threshold=0.15):
+            # Ensure pred and target are on the same device
+            pred = pred.to(target.device)
+
+            pred = (torch.sigmoid(pred) > threshold).float()
+
+            precisions = []
+            recs = []
+            for c in range(pred.shape[1]): # Iterate over classes
+                p = pred[:, c].contiguous().view(pred.size(0), -1)
+                t = target[:, c].contiguous().view(target.size(0), -1)
+
+                tp = (p * t).sum(dim=1)
+                fp = ((1 - t) * p).sum(dim=1)
+                fn = ((1 - p) * t).sum(dim=1)
+
+                # Precision: TP / (TP + FP)
+                precision = torch.where((tp + fp) == 0, torch.tensor(1.0).to(target.device), tp / (tp + fp))
+                precisions.extend(precision.cpu().numpy().tolist())
+
+                # Recall: TP / (TP + FN)
+                recall = torch.where((tp + fn) == 0, torch.tensor(1.0).to(target.device), tp / (tp + fn))
+                recs.extend(recall.cpu().numpy().tolist())
+
+            return np.array(precisions), np.array(recs)
+
+
+        # Reload the model and validation loader if not already available in scope
+        # (Assuming `model`, `val_ds`, `device`, `NUM_CLASSES` are defined in previous cells)
+
+
+        # Load the saved HRNet model weights
+        # model.load_state_dict(torch.load("/content/drive/MyDrive/BFL/Main_models/hr_net.pth", map_location=device))
+        # model.to(device)
+        model.eval() # Set model to evaluation mode
+
+        val_loader = DataLoader(val_ds, batch_size=4)
+
+        all_ious = []
+        all_precisions = []
+        all_recalls = []
+
+        print("\nStarting HRNet accuracy evaluation...")
+
+        with torch.no_grad():
+            for imgs, masks in val_loader:
+                imgs, masks = imgs.to(device), masks.to(device)
+                out = model(imgs)
+                batch_ious = compute_hrnet_iou(out, masks, threshold=0.5) # Using the same threshold as visualize
+                batch_precisions, batch_recalls = compute_hrnet_precision_recall(out, masks, threshold=0.15)
+                all_ious.extend(batch_ious)
+                all_precisions.extend(batch_precisions)
+                all_recalls.extend(batch_recalls)
+
+        # Reshape metrics to be (num_images, NUM_CLASSES)
+        all_ious_reshaped = np.array(all_ious).reshape(-1, CLASS_NAMES)
+        all_precisions_reshaped = np.array(all_precisions).reshape(-1, CLASS_NAMES)
+        all_recalls_reshaped = np.array(all_recalls).reshape(-1, CLASS_NAMES)
+
+        # Calculate mean IoU for each class
+        mean_iou_per_class = np.nanmean(all_ious_reshaped, axis=0) # Use nanmean to handle potential NaN values
+        overall_mIoU = np.nanmean(mean_iou_per_class) # Calculate mean of class IoUs
+
+        # Calculate mean Precision and Recall for each class
+        mean_precision_per_class = np.nanmean(all_precisions_reshaped, axis=0)
+        mean_recall_per_class = np.nanmean(all_recalls_reshaped, axis=0)
+
+        print("\n--- HRNet Evaluation Results ---")
+        print("Mean IoU per class:")
+        for i, iou in enumerate(mean_iou_per_class):
+            # Assuming CLASS_NAMES are available from the UNet part, if not, generalize
+            class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
+            print(f"  {class_name}: {iou:.4f}")
+        print(f"Overall Mean Intersection over Union (mIoU): {overall_mIoU:.4f}")
+
+        print("\nMean Precision per class:")
+        for i, precision in enumerate(mean_precision_per_class):
+            class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
+            print(f"  {class_name}: {precision:.4f}")
+
+        print("\nMean Recall per class:")
+        for i, recall in enumerate(mean_recall_per_class):
+            class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
+            print(f"  {class_name}: {recall:.4f}")
+    validation()
+
+def check(check_True:bool=False):
+    return check_True
+
 def retrain():
     train_hrnet_model()
-    # reload_model()
+    if check():
+        
+        reload_model(os.path.join(WORK_DIR,"models","hrnet.pth"))
     
 if __name__ == "__main__":
     image = r"C:\Users\HP\Downloads\drive-download-20260708T162158Z-3-001\0d275df7-Sayli_19_241.jpg"
