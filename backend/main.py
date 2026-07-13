@@ -308,8 +308,7 @@ def retrain(
     session_id, needs_refresh = session_data
     folder_name = get_session_folder_name(session_id)
     result_folder_path = os.path.join(RESULT_DIR, folder_name)
-    models = _get
-
+    # models = _get
     return {
         "message": "Retraining started",
         "result_folder": result_folder_path,

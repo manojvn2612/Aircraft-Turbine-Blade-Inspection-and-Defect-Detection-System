@@ -87,7 +87,7 @@ def _preprocess(image_bgr, img_size=512):
     resized  = cv2.resize(enhanced, (img_size, img_size))
     rgb      = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
     tensor   = torch.tensor(rgb).permute(2, 0, 1).unsqueeze(0).to(DEVICE)
-    cv2.imwrite("enhanced_image.jpg", enhanced)  # Save the enhanced image for debugging
+    # cv2.imwrite("enhanced_image.jpg", enhanced)  # Saving the enhanced image for debugging
     return tensor, enhanced
 
 
