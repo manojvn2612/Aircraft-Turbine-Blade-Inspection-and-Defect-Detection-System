@@ -698,6 +698,19 @@ body {
 
 /* Retraining controls on the select page */
 
+.retrainPageMain {
+  min-height: calc(100vh - 80px);
+  padding: clamp(20px, 4vw, 40px) clamp(16px, 5vw, 60px) 60px;
+}
+
+.retrainPageCard {
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.04);
+}
+
 .modelActions {
   display: flex;
   gap: 16px;
@@ -742,6 +755,161 @@ body {
   cursor: not-allowed;
   font-size: calc(14px * var(--zoom));
   font-weight: 600;
+}
+
+.saveModelBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 22px;
+  cursor: pointer;
+  font-size: calc(14px * var(--zoom));
+  font-weight: 600;
+  transition: 0.2s;
+}
+
+.saveModelBtn:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.saveModelBtn:disabled {
+  background: #a7f3d0;
+  cursor: not-allowed;
+}
+
+.zipUploadBox {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border: 1px dashed #d0d7de;
+  border-radius: 14px;
+  background: #fafbfc;
+}
+
+.zipUploadBox h3 {
+  font-size: 16px;
+  color: #344054;
+  margin-bottom: 8px;
+}
+
+.zipUploadBox p {
+  font-size: 13px;
+  color: #667085;
+  margin-bottom: 12px;
+}
+
+.uploadZipBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.uploadZipBtn:hover:not(:disabled) {
+  background: #d97706;
+}
+
+.uploadZipBtn:disabled {
+  background: #fcd29f;
+  cursor: not-allowed;
+}
+
+.launchLabelingBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.launchLabelingBtn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.launchLabelingBtn:disabled {
+  background: #93c5fd;
+  cursor: not-allowed;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modalCard {
+  width: min(460px, 100%);
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
+}
+
+.modalCard h3 {
+  margin-bottom: 10px;
+  color: #111827;
+}
+
+.modalCard p {
+  color: #475467;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.modalActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.modalButtonPrimary,
+.modalButtonSecondary {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modalButtonPrimary {
+  background: #2563eb;
+  color: white;
+}
+
+.modalButtonSecondary {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.retrainNotice {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a2c00;
+  border: 1px solid #fed7aa;
+  font-size: 13px;
 }
 
 .spin {
@@ -810,4 +978,63 @@ body {
   margin-top: 8px;
   font-size: 12px;
   color: #667085;
+}
+
+/* Retraining evaluation results table */
+
+.evalResultsBlock {
+  margin-top: 16px;
+  text-align: left;
+}
+
+.evalOverallRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #355cff;
+}
+
+.evalOverallRow strong {
+  font-size: 15px;
+}
+
+.evalTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.evalTable thead th {
+  background: #f9fafb;
+  color: #667085;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.evalTable tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #344054;
+}
+
+.evalTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.evalTable tbody tr:hover {
+  background: #f9fafb;
 }

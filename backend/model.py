@@ -2,10 +2,11 @@ from collections import Counter
 import os
 import cv2
 import numpy as np
+import random
 import shutil
 from ultralytics import YOLO
 from dotenv import load_dotenv
-from hrnet_model import CLASS_NAMES, HRNetInference,reload_model
+from hrnet_model import CLASS_NAMES, HRNetInference,reload_model,initialize_model
 import torch
 from torch.utils.data import Dataset,DataLoader
 import torch.nn.functional as F
@@ -14,12 +15,12 @@ blade_model = None
 hr_model = None
 load_dotenv("../.env")
 WORK_DIR = os.getenv("WORK_DIR", "..")
-RETRAIN_DIR = os.getenv("RETRAIN_DIR","retrain")
 SECRET_KEY = os.getenv("SECRET_KEY")
 # ALGORITHM = "HS256"
 STORAGE_DIR = os.path.join(WORK_DIR, os.getenv("STORAGE_DIR", "storage"))
 RESULT_DIR = os.path.join(STORAGE_DIR, os.getenv("RESULT_DIR", "results"))
 UPLOAD_DIR = os.path.join(STORAGE_DIR, os.getenv("UPLOAD_DIR", "uploads"))
+RETRAIN_DIR = os.getenv("RETRAIN_DIR","retrain")
 RETRAIN_DIR = os.path.join(STORAGE_DIR,RETRAIN_DIR)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
@@ -443,8 +444,9 @@ def mask_to_color(mask):
     return color_mask
 
 def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
-    from torch.utils.data import DataLoader
-    models = _get_models()[1]
+    # from torch.utils.data import DataLoader
+    print("path is",os.getcwd())
+    models = initialize_model(os.path.join(os.getcwd(),"models","hr_net.pth"))
     train_transform, val_transform = transform()
     train_ds = YOLOSegDataset(os.path.join(os.path.join(STORAGE_DIR,RETRAIN_DIR),"images","train"), os.path.join(os.path.join(STORAGE_DIR,RETRAIN_DIR),"labels","train"), img_size=512, transform=train_transform)
     val_ds   = YOLOSegDataset(os.path.join(os.path.join(STORAGE_DIR,RETRAIN_DIR),"images","val"), os.path.join(os.path.join(STORAGE_DIR,RETRAIN_DIR),"labels","val"), img_size=512, transform=val_transform)
@@ -453,17 +455,19 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
     val_loader   = DataLoader(val_ds, batch_size=4)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = models.to(device)
+    # model = models
+    models = models.to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(),lr=lr)
+    optimizer = torch.optim.AdamW(models.parameters(),lr=lr)
+    with open(os.path.join(os.getcwd(),"best_loss.txt"),'r') as f: 
+        best_val_loss = float(f.read().strip())
 
-    best_val_loss = float('inf')
     patience = 10
     counter = 0
+    is_updated = False
 
     train_losses_history = []
     val_losses_history = []
-
     for epoch in range(epochs):
         models.train()
         train_loss = 0
@@ -472,7 +476,7 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
             imgs, masks = imgs.to(device), masks.to(device)
 
             optimizer.zero_grad()
-            out = model(imgs)
+            out = models(imgs)
 
             loss = loss_fn(out, masks)
             loss.backward()
@@ -480,12 +484,12 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
 
             train_loss += loss.item()
 
-        model.eval()
+        models.eval()
         val_loss = 0
         with torch.no_grad():
             for imgs, masks in val_loader:
                 imgs, masks = imgs.to(device), masks.to(device)
-                out = model(imgs)
+                out = models(imgs)
                 loss = loss_fn(out, masks)
                 val_loss += loss.item()
 
@@ -495,22 +499,27 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
         train_losses_history.append(train_loss)
         val_losses_history.append(val_loss)
 
-        # print(f"Epoch {epoch} Train Loss: {train_loss:.4f} Val Loss: {val_loss:.4f}")
-
+        print(f"Epoch {epoch} Train Loss: {train_loss:.4f} Val Loss: {val_loss:.4f}")
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             counter = 0
-            torch.save(model.state_dict(),os.path.join(WORK_DIR,"models","hrnet_new.pth"))
+            is_updated = True
+            print("j")
+            with open(os.path.join(os.getcwd(),"best_loss.txt"),'w') as f:
+                f.write(best_val_loss)
+            torch.save(models.state_dict(),os.path.join(os.getcwd(),"models","hrnet_new.pth"))
         else:
             counter += 1
             if counter >= patience:
                 print(f"Early stopping after {patience} epochs without improvement.")
                 break
+    if not is_updated:
+        return {"is_updated": is_updated, "response": None}
     # threshold = 0.5
     def validation():
     # val_ds = val_ds   = YOLOSegDataset(os.path.join(os.path.join(STORAGE_DIR,RETRAIN_DIR),"images","val"), os.path.join(os.path.join(STORAGE_DIR,RETRAIN_DIR),"labels","val"), img_size=512, transform=val_transform)
         # model = _get_models()[1]
-        def compute_hrnet_iou(pred, target, threshold=0.5):
+        def compute_hrnet_iou(pred, target, threshold=threshold):
             # Ensure pred and target are on the same device
             pred = pred.to(target.device)
 
@@ -564,7 +573,7 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
         # Load the saved HRNet model weights
         # model.load_state_dict(torch.load("/content/drive/MyDrive/BFL/Main_models/hr_net.pth", map_location=device))
         # model.to(device)
-        model.eval() # Set model to evaluation mode
+        models.eval() # Set model to evaluation mode
 
         val_loader = DataLoader(val_ds, batch_size=4)
 
@@ -577,7 +586,7 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
         with torch.no_grad():
             for imgs, masks in val_loader:
                 imgs, masks = imgs.to(device), masks.to(device)
-                out = model(imgs)
+                out = models(imgs)
                 batch_ious = compute_hrnet_iou(out, masks, threshold=0.5) # Using the same threshold as visualize
                 batch_precisions, batch_recalls = compute_hrnet_precision_recall(out, masks, threshold=0.15)
                 all_ious.extend(batch_ious)
@@ -585,9 +594,9 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
                 all_recalls.extend(batch_recalls)
 
         # Reshape metrics to be (num_images, NUM_CLASSES)
-        all_ious_reshaped = np.array(all_ious).reshape(-1, CLASS_NAMES)
-        all_precisions_reshaped = np.array(all_precisions).reshape(-1, CLASS_NAMES)
-        all_recalls_reshaped = np.array(all_recalls).reshape(-1, CLASS_NAMES)
+        all_ious_reshaped = np.array(all_ious).reshape(-1, len(CLASS_NAMES))
+        all_precisions_reshaped = np.array(all_precisions).reshape(-1, len(CLASS_NAMES))
+        all_recalls_reshaped = np.array(all_recalls).reshape(-1, len(CLASS_NAMES))
 
         # Calculate mean IoU for each class
         mean_iou_per_class = np.nanmean(all_ious_reshaped, axis=0) # Use nanmean to handle potential NaN values
@@ -597,37 +606,108 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
         mean_precision_per_class = np.nanmean(all_precisions_reshaped, axis=0)
         mean_recall_per_class = np.nanmean(all_recalls_reshaped, axis=0)
 
-        print("\n--- HRNet Evaluation Results ---")
-        print("Mean IoU per class:")
-        for i, iou in enumerate(mean_iou_per_class):
-            # Assuming CLASS_NAMES are available from the UNet part, if not, generalize
-            class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
-            print(f"  {class_name}: {iou:.4f}")
-        print(f"Overall Mean Intersection over Union (mIoU): {overall_mIoU:.4f}")
+        # Prepare evaluation results
+        evaluation_results = []
 
-        print("\nMean Precision per class:")
-        for i, precision in enumerate(mean_precision_per_class):
-            class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
-            print(f"  {class_name}: {precision:.4f}")
+        for i in range(len(mean_iou_per_class)):
+            class_name = (
+                CLASS_NAMES[i]
+                if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES)
+                else f"Class {i}"
+            )
 
-        print("\nMean Recall per class:")
-        for i, recall in enumerate(mean_recall_per_class):
-            class_name = CLASS_NAMES[i] if 'CLASS_NAMES' in globals() and i < len(CLASS_NAMES) else f"Class {i}"
-            print(f"  {class_name}: {recall:.4f}")
-    validation()
+            evaluation_results.append({
+                "class_name": class_name,
+                "iou": round(float(mean_iou_per_class[i]), 4),
+                "precision": round(float(mean_precision_per_class[i]), 4),
+                "recall": round(float(mean_recall_per_class[i]), 4)
+            })
+
+        response = {
+            "overall_miou": round(float(overall_mIoU), 4),
+            "evaluation_results": evaluation_results
+        }
+
+        return response
+    response = validation()
+    return {"is_updated": is_updated, "response": response}
+def train_test():
+    # Paths
+    IMG_DIR = os.path.join(RETRAIN_DIR,"images")
+    LBL_DIR = os.path.join(RETRAIN_DIR,"labels")
+
+    TRAIN_IMG = os.path.join(RETRAIN_DIR,"images","train")
+    VAL_IMG   = os.path.join(RETRAIN_DIR,"images","val")
+    TRAIN_LBL = os.path.join(RETRAIN_DIR,"labels","val")
+    VAL_LBL   = os.path.join(RETRAIN_DIR,"labels","val")
+
+    # Create folders
+    for d in [TRAIN_IMG, VAL_IMG, TRAIN_LBL, VAL_LBL]:
+        os.makedirs(d, exist_ok=True)
+
+    # Get all images
+    images = [f for f in os.listdir(IMG_DIR)
+            if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+
+    random.seed(42)
+    random.shuffle(images)
+
+    # Split ratio
+    val_ratio = 0.2
+    split_idx = int(len(images) * (1 - val_ratio))
+
+    train_imgs = images[:split_idx]
+    val_imgs   = images[split_idx:]
+
+    def move_files(img_list, img_dst, lbl_dst):
+        for img_name in img_list:
+            src_img = os.path.join(IMG_DIR, img_name)
+            dst_img = os.path.join(img_dst, img_name)
+
+            lbl_name = os.path.splitext(img_name)[0] + ".txt"
+            src_lbl = os.path.join(LBL_DIR, lbl_name)
+            dst_lbl = os.path.join(lbl_dst, lbl_name)
+
+            # Move image
+            shutil.move(src_img, dst_img)
+
+            # Move label if exists
+            if os.path.exists(src_lbl):
+                shutil.move(src_lbl, dst_lbl)
+
+    # Move files
+    move_files(train_imgs, TRAIN_IMG, TRAIN_LBL)
+    move_files(val_imgs, VAL_IMG, VAL_LBL)
+
+    # print(f"✅ Train: {len(train_imgs)} images")
+    # print(f"✅ Val: {len(val_imgs)} images")
 
 def checks(check_True:bool=False):
     if check_True:
-        shutil.move(os.path.join(WORK_DIR,"models","hrnet_new.pth"),os.path.join(WORK_DIR,"models","hrnet.pth"))
-        reload_model(os.path.join(WORK_DIR,"models","hrnet.pth"))
+        print("True")
+        shutil.move(os.path.join(WORK_DIR,"models","hrnet_new.pth"),os.path.join(WORK_DIR,"models","hr_net.pth"))
+        os.remove(os.path.join(WORK_DIR,"models","hrnet_new.pth"))
+        reload_model(os.path.join(os.getcwd(),"models","hr_net.pth"))
+        shutil.rmtree(RETRAIN_DIR)
+
+
+def save_model():
+    new_model_path = os.path.join(os.getcwd(), "models", "hrnet_new.pth")
+    if not os.path.exists(new_model_path):
+        return {"saved": False, "message": "No retrained model found to save."}
+
+    checks(check_True=True)
+    return {"saved": True, "message": "Model saved successfully."}
+
 
 def retrain():
-    train_hrnet_model()
+    # train_test()
+    return train_hrnet_model()
     # if check():
     
 if __name__ == "__main__":
     image = r"C:\Users\HP\Downloads\drive-download-20260708T162158Z-3-001\0d275df7-Sayli_19_241.jpg"
-
+    retrain()
     result = predict(image)
 
     cv2.namedWindow("Blade", cv2.WINDOW_NORMAL)

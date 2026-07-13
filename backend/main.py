@@ -1,6 +1,7 @@
 import os
 import shutil
 import uuid
+import zipfile
 from datetime import datetime, timedelta, timezone
 import cv2
 from dotenv import load_dotenv
@@ -9,9 +10,10 @@ from fastapi.security import APIKeyCookie
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import subprocess, jwt, sys
+import platform
 
 # Renamed on import to avoid colliding with the /predict route function below.
-from model import predict as run_prediction
+from model import predict as run_prediction, retrain, save_model as save_trained_model
 
 from camera_start import _launch_camera_app
 
@@ -23,8 +25,13 @@ ALGORITHM = "HS256"
 STORAGE_DIR = os.path.join(WORK_DIR, os.getenv("STORAGE_DIR", "storage"))
 RESULT_DIR = os.path.join(STORAGE_DIR, os.getenv("RESULT_DIR", "results"))
 UPLOAD_DIR = os.path.join(STORAGE_DIR, os.getenv("UPLOAD_DIR", "uploads"))
+RETRAIN_DIR = os.getenv("RETRAIN_DIR","retrain")
+RETRAIN_DIR = os.path.join(STORAGE_DIR,RETRAIN_DIR)
+QUICK_UPLOAD_DIR = os.path.join(WORK_DIR, "quick_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
+os.makedirs(RETRAIN_DIR,exist_ok=True)
+os.makedirs(QUICK_UPLOAD_DIR, exist_ok=True)
 
 cookie_scheme = APIKeyCookie(name="session_token", auto_error=False)
 
@@ -301,18 +308,132 @@ def predict_all(
         "results": results,
     }
 
-@app.post("/retrain")
-def retrain(
+@app.post("/start-labeling")
+def start_labeling_endpoint(
+    response: Response,
     session_data: tuple = Depends(verify_and_refresh_session)
 ):
     session_id, needs_refresh = session_data
-    folder_name = get_session_folder_name(session_id)
-    result_folder_path = os.path.join(RESULT_DIR, folder_name)
-    # models = _get
+
+    if needs_refresh:
+        new_token = create_session_token(session_id)
+        set_session_cookie(response, new_token)
+
+    script_path = os.path.abspath(os.path.join(os.getcwd(), "labeling.py"))
+    if not os.path.exists(script_path):
+        raise HTTPException(status_code=404, detail="Labeling script not found")
+
+    try:
+        process = subprocess.Popen(
+            [sys.executable, script_path],
+            cwd=os.getcwd(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not start labeling tool: {exc}") from exc
+
     return {
-        "message": "Retraining started",
-        "result_folder": result_folder_path,
-        "status": "retraining_in_progress"
+        "message": "Labeling tool started successfully",
+        "pid": process.pid,
+    }
+
+
+@app.post("/open-quick-upload")
+def open_quick_upload_folder(
+    response: Response,
+    session_data: tuple = Depends(verify_and_refresh_session)
+):
+    session_id, needs_refresh = session_data
+
+    if needs_refresh:
+        new_token = create_session_token(session_id)
+        set_session_cookie(response, new_token)
+
+    os.makedirs(QUICK_UPLOAD_DIR, exist_ok=True)
+
+    try:
+        if platform.system() == "Windows":
+            os.startfile(QUICK_UPLOAD_DIR)
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", QUICK_UPLOAD_DIR])
+        else:
+            subprocess.Popen(["xdg-open", QUICK_UPLOAD_DIR])
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not open folder: {exc}") from exc
+
+    return {
+        "message": "Quick upload folder opened",
+        "folder": QUICK_UPLOAD_DIR,
+    }
+
+
+@app.post("/retrain")
+def retrain_endpoint(
+    session_data: tuple = Depends(verify_and_refresh_session)
+):
+    session_id, needs_refresh = session_data
+
+    result = retrain()
+
+    return {
+        "message": "Retraining completed",
+        "status": "done" if result["is_updated"] else "scrapped",
+        "is_updated": result["is_updated"],
+        "response": result["response"]
+    }
+
+
+@app.post("/save-model")
+def save_model_endpoint(
+    session_data: tuple = Depends(verify_and_refresh_session)
+):
+    session_id, needs_refresh = session_data
+
+    result = save_trained_model()
+
+    if result.get("saved"):
+        return {
+            "message": result["message"],
+            "saved": True,
+        }
+
+    return {
+        "message": result["message"],
+        "saved": False,
+    }, 404
+
+
+@app.post("/upload-retrain-zip")
+def upload_retrain_zip(
+    file: UploadFile = File(...),
+    session_data: tuple = Depends(verify_and_refresh_session)
+):
+    session_id, needs_refresh = session_data
+
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Please upload a .zip file")
+
+    os.makedirs(RETRAIN_DIR, exist_ok=True)
+
+    temp_zip_path = os.path.join(RETRAIN_DIR, f"{uuid.uuid4().hex}_{file.filename}")
+    with open(temp_zip_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        with zipfile.ZipFile(temp_zip_path, "r") as zf:
+            zf.extractall(RETRAIN_DIR)
+    except Exception as exc:
+        os.remove(temp_zip_path)
+        raise HTTPException(status_code=400, detail=f"Failed to extract zip file: {exc}") from exc
+
+    os.remove(temp_zip_path)
+
+    return {
+        "message": "Retraining dataset uploaded and extracted successfully",
+        "folder": RETRAIN_DIR,
     }
 
 

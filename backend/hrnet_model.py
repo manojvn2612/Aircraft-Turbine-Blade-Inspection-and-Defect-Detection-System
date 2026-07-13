@@ -49,6 +49,7 @@ def initialize_model(weights_path="hr_net.pth"):
     _model.to(DEVICE)
     _model.eval()
     print(f"HRNet model loaded from {weights_path} on {DEVICE}")
+    return _model
 
 
 def reload_model(weights_path):
