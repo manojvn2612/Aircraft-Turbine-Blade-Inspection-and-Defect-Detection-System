@@ -22,7 +22,7 @@ from camera_start import _launch_camera_app
 load_dotenv("../.env")
 WORK_DIR = os.getenv("WORK_DIR", "..")
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY", "BFL")
 ALGORITHM = "HS256"
 STORAGE_DIR = os.path.join(WORK_DIR, os.getenv("STORAGE_DIR", "storage"))
 RESULT_DIR = os.path.join(STORAGE_DIR, os.getenv("RESULT_DIR", "results"))
@@ -580,4 +580,5 @@ async def upload_retrain_zip(
 
 if __name__ == "__main__":
     import uvicorn
+    MAIN_PORT = int(os.getenv("MAIN_PORT", 8000))
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
