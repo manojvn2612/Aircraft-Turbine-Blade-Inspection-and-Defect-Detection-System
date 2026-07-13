@@ -2,6 +2,7 @@ from collections import Counter
 import os
 import cv2
 import numpy as np
+import shutil
 from ultralytics import YOLO
 from dotenv import load_dotenv
 from hrnet_model import CLASS_NAMES, HRNetInference,reload_model
@@ -615,14 +616,14 @@ def train_hrnet_model(epochs = 10,threshold = 0.5,lr=3e-4):
             print(f"  {class_name}: {recall:.4f}")
     validation()
 
-def check(check_True:bool=False):
-    return check_True
+def checks(check_True:bool=False):
+    if check_True:
+        shutil.move(os.path.join(WORK_DIR,"models","hrnet_new.pth"),os.path.join(WORK_DIR,"models","hrnet.pth"))
+        reload_model(os.path.join(WORK_DIR,"models","hrnet.pth"))
 
 def retrain():
     train_hrnet_model()
-    if check():
-        
-        reload_model(os.path.join(WORK_DIR,"models","hrnet.pth"))
+    # if check():
     
 if __name__ == "__main__":
     image = r"C:\Users\HP\Downloads\drive-download-20260708T162158Z-3-001\0d275df7-Sayli_19_241.jpg"

@@ -253,8 +253,8 @@ if __name__ == "__main__":
         threshold=inference_threshold,
     )
 
-    cv2.imwrite("final_output.png", vis_bgr)
-    print(f"Saved final_output.png — {len(detections)} detection(s)")
+    # cv2.imwrite("final_output.png", vis_bgr)
+    # print(f"Saved final_output.png — {len(detections)} detection(s)")
     for d in detections:
         status = "ACCEPTED" if d["accepted"] else "REJECTED"
         print(f"  {d['class_name']} | conf={d['confidence']} | {status} | bbox={d['bbox']}")
