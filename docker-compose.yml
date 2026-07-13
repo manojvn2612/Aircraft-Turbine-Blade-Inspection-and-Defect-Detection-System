@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+
+  backend:
+
+    build:
+      context: ./backend
+
+    container_name: blade-defect-backend
+
+    env_file:
+      - .env
+
+    environment:
+      HOST: ${HOST}
+      PORT: ${MAIN_PORT}
+      SECRET_KEY: ${SECRET_KEY}
+
+      WORK_DIR: ${WORK_DIR}
+
+      STORAGE_DIR: ${STORAGE_DIR}
+      RESULT_DIR: ${RESULT_DIR}
+      UPLOAD_DIR: ${UPLOAD_DIR}
+      RETRAIN_DIR: ${RETRAIN_DIR}
+
+    ports:
+      - "${DOCKER_BIND_IP}:${MAIN_PORT}:${MAIN_PORT}"
+
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models
+      - ./quick_uploads:/app/quick_uploads
+
+    restart: unless-stopped
