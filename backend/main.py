@@ -9,8 +9,10 @@ from fastapi import FastAPI, HTTPException, Security, UploadFile, File, Response
 from fastapi.security import APIKeyCookie
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import subprocess, jwt, sys
 import platform
+import asyncio
 
 # Renamed on import to avoid colliding with the /predict route function below.
 from model import predict as run_prediction, retrain, save_model as save_trained_model
@@ -28,12 +30,53 @@ UPLOAD_DIR = os.path.join(STORAGE_DIR, os.getenv("UPLOAD_DIR", "uploads"))
 RETRAIN_DIR = os.getenv("RETRAIN_DIR","retrain")
 RETRAIN_DIR = os.path.join(STORAGE_DIR,RETRAIN_DIR)
 QUICK_UPLOAD_DIR = os.path.join(WORK_DIR, "quick_uploads")
+DEFECTIVE_DIR = os.path.join(STORAGE_DIR, "defective")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
 os.makedirs(RETRAIN_DIR,exist_ok=True)
 os.makedirs(QUICK_UPLOAD_DIR, exist_ok=True)
+os.makedirs(DEFECTIVE_DIR, exist_ok=True)
 
 cookie_scheme = APIKeyCookie(name="session_token", auto_error=False)
+
+
+class MarkImageRequest(BaseModel):
+    filename: str
+    decision: str
+    result_filename: str | None = None
+    defect_names: list[str] | None = None
+    defect_count: int = 0
+
+
+def _copy_upload_to_disk(source, destination: str):
+    with open(destination, "wb") as buffer:
+        shutil.copyfileobj(source, buffer)
+
+
+def _extract_zip_file(archive_path: str, destination: str):
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        zf.extractall(destination)
+
+
+def _open_folder(path: str):
+    if platform.system() == "Windows":
+        os.startfile(path)
+    elif platform.system() == "Darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+
+def _classify_defect_status(defect_names: list[str] | None, defect_count: int) -> str:
+    if defect_count <= 0:
+        return "clear"
+
+    normalized = [name.lower() for name in (defect_names or []) if name]
+    if any("fingerprint" in name or "stain" in name for name in normalized):
+        return "solvable"
+    if any(name != "pocket" for name in normalized):
+        return "defective"
+    return "clear"
 
 
 def create_session_token(session_id: str):
@@ -145,8 +188,7 @@ async def upload_image(
     os.makedirs(session_folder_path, exist_ok=True)
     file_path = os.path.join(session_folder_path, file.filename)
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    await asyncio.to_thread(_copy_upload_to_disk, file.file, file_path)
 
     return {
         "message": "Image uploaded successfully",
@@ -161,7 +203,7 @@ _camera_process = None
 
 
 @app.post("/camera")
-def camera_start(
+async def camera_start(
     response: Response,
     session_data: tuple = Depends(verify_and_refresh_session)
 ):
@@ -188,9 +230,10 @@ def camera_start(
 
         return {"status": "stopped", "folder_name": folder_name}
 
-    _camera_process = _launch_camera_app(
+    _camera_process = await asyncio.to_thread(
+        _launch_camera_app,
         os.getcwd(),
-        save_path=session_folder_path
+        save_path=session_folder_path,
     )
 
     return {
@@ -262,7 +305,7 @@ async def get_result_image(
 
 
 @app.post("/predict")
-def predict_all(
+async def predict_all(
     session_data: tuple = Depends(verify_and_refresh_session)
 ):
     session_id, needs_refresh = session_data
@@ -285,7 +328,7 @@ def predict_all(
     for item in items:
         item_path = os.path.join(session_folder_path, item)
 
-        prediction = run_prediction(item_path)
+        prediction = await asyncio.to_thread(run_prediction, item_path)
 
 
         annotated_vis = prediction.get("hrnet_output")
@@ -293,7 +336,7 @@ def predict_all(
 
         if annotated_vis is not None:
             output_path = os.path.join(result_folder_path, output_filename)
-            cv2.imwrite(output_path, annotated_vis)
+            await asyncio.to_thread(cv2.imwrite, output_path, annotated_vis)
         result_entry = dict(prediction)
         result_entry["filename"] = item
         result_entry["result_filename"] = output_filename
@@ -309,7 +352,7 @@ def predict_all(
     }
 
 @app.post("/start-labeling")
-def start_labeling_endpoint(
+async def start_labeling_endpoint(
     response: Response,
     session_data: tuple = Depends(verify_and_refresh_session)
 ):
@@ -327,10 +370,6 @@ def start_labeling_endpoint(
         process = subprocess.Popen(
             [sys.executable, script_path],
             cwd=os.getcwd(),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not start labeling tool: {exc}") from exc
@@ -341,8 +380,117 @@ def start_labeling_endpoint(
     }
 
 
+@app.post("/mark-image-status")
+async def mark_image_status(
+    payload: MarkImageRequest,
+    response: Response,
+    session_data: tuple = Depends(verify_and_refresh_session)
+):
+    session_id, needs_refresh = session_data
+
+    if needs_refresh:
+        new_token = create_session_token(session_id)
+        set_session_cookie(response, new_token)
+
+    if payload.decision not in {"clear", "defective", "retrain"}:
+        raise HTTPException(status_code=400, detail="Invalid decision")
+
+    folder_name = get_session_folder_name(session_id)
+    session_folder_path = os.path.join(UPLOAD_DIR, folder_name)
+    result_folder_path = os.path.join(RESULT_DIR, folder_name)
+    safe_filename = os.path.basename(payload.filename)
+    source_path = os.path.join(session_folder_path, safe_filename)
+    output_path = None
+
+    if payload.result_filename:
+        output_candidate = os.path.join(result_folder_path, os.path.basename(payload.result_filename))
+        if os.path.isfile(output_candidate):
+            output_path = output_candidate
+
+    if output_path is None and not os.path.isfile(source_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    if payload.decision == "clear":
+        return {
+            "message": "Image marked as clear",
+            "status": "clear",
+        }
+
+    image_source = output_path or source_path
+
+    if payload.decision == "retrain":
+        original_name, ext = os.path.splitext(safe_filename)
+        destination_name = f"{original_name}{ext}"
+        destination_path = os.path.join(QUICK_UPLOAD_DIR, destination_name)
+
+        if os.path.exists(destination_path):
+            stem, suffix = os.path.splitext(destination_name)
+            counter = 1
+            while os.path.exists(os.path.join(QUICK_UPLOAD_DIR, f"{stem}_{counter}{suffix}")):
+                counter += 1
+            destination_path = os.path.join(QUICK_UPLOAD_DIR, f"{stem}_{counter}{suffix}")
+
+        await asyncio.to_thread(shutil.copy2, image_source, destination_path)
+
+        metadata = {
+            "source_filename": safe_filename,
+            "session_id": session_id,
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "decision": "retrain",
+            "result_filename": payload.result_filename,
+        }
+        with open(f"{destination_path}.json", "w", encoding="utf-8") as handle:
+            import json
+            json.dump(metadata, handle, indent=2)
+
+        return {
+            "message": "Image moved to quick uploads for retraining",
+            "status": "retrain",
+            "saved_path": destination_path,
+        }
+
+    defect_status = _classify_defect_status(payload.defect_names, payload.defect_count)
+    if defect_status == "clear":
+        return {
+            "message": "Image marked as clear",
+            "status": "clear",
+        }
+
+    original_name, ext = os.path.splitext(safe_filename)
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    destination_name = f"{original_name}_{session_id}_{date_str}{ext}"
+    destination_path = os.path.join(DEFECTIVE_DIR, destination_name)
+
+    if os.path.exists(destination_path):
+        stem, suffix = os.path.splitext(destination_name)
+        counter = 1
+        while os.path.exists(os.path.join(DEFECTIVE_DIR, f"{stem}_{counter}{suffix}")):
+            counter += 1
+        destination_path = os.path.join(DEFECTIVE_DIR, f"{stem}_{counter}{suffix}")
+
+    await asyncio.to_thread(shutil.copy2, image_source, destination_path)
+
+    metadata = {
+        "source_filename": safe_filename,
+        "session_id": session_id,
+        "date": date_str,
+        "status": defect_status,
+        "defect_names": payload.defect_names or [],
+        "defect_count": payload.defect_count,
+    }
+    with open(f"{destination_path}.json", "w", encoding="utf-8") as handle:
+        import json
+        json.dump(metadata, handle, indent=2)
+
+    return {
+        "message": "Image marked as defective",
+        "status": defect_status,
+        "saved_path": destination_path,
+    }
+
+
 @app.post("/open-quick-upload")
-def open_quick_upload_folder(
+async def open_quick_upload_folder(
     response: Response,
     session_data: tuple = Depends(verify_and_refresh_session)
 ):
@@ -355,12 +503,7 @@ def open_quick_upload_folder(
     os.makedirs(QUICK_UPLOAD_DIR, exist_ok=True)
 
     try:
-        if platform.system() == "Windows":
-            os.startfile(QUICK_UPLOAD_DIR)
-        elif platform.system() == "Darwin":
-            subprocess.Popen(["open", QUICK_UPLOAD_DIR])
-        else:
-            subprocess.Popen(["xdg-open", QUICK_UPLOAD_DIR])
+        await asyncio.to_thread(_open_folder, QUICK_UPLOAD_DIR)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not open folder: {exc}") from exc
 
@@ -371,12 +514,12 @@ def open_quick_upload_folder(
 
 
 @app.post("/retrain")
-def retrain_endpoint(
+async def retrain_endpoint(
     session_data: tuple = Depends(verify_and_refresh_session)
 ):
     session_id, needs_refresh = session_data
 
-    result = retrain()
+    result = await asyncio.to_thread(retrain)
 
     return {
         "message": "Retraining completed",
@@ -387,12 +530,12 @@ def retrain_endpoint(
 
 
 @app.post("/save-model")
-def save_model_endpoint(
+async def save_model_endpoint(
     session_data: tuple = Depends(verify_and_refresh_session)
 ):
     session_id, needs_refresh = session_data
 
-    result = save_trained_model()
+    result = await asyncio.to_thread(save_trained_model)
 
     if result.get("saved"):
         return {
@@ -407,7 +550,7 @@ def save_model_endpoint(
 
 
 @app.post("/upload-retrain-zip")
-def upload_retrain_zip(
+async def upload_retrain_zip(
     file: UploadFile = File(...),
     session_data: tuple = Depends(verify_and_refresh_session)
 ):
@@ -419,12 +562,10 @@ def upload_retrain_zip(
     os.makedirs(RETRAIN_DIR, exist_ok=True)
 
     temp_zip_path = os.path.join(RETRAIN_DIR, f"{uuid.uuid4().hex}_{file.filename}")
-    with open(temp_zip_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    await asyncio.to_thread(_copy_upload_to_disk, file.file, temp_zip_path)
 
     try:
-        with zipfile.ZipFile(temp_zip_path, "r") as zf:
-            zf.extractall(RETRAIN_DIR)
+        await asyncio.to_thread(_extract_zip_file, temp_zip_path, RETRAIN_DIR)
     except Exception as exc:
         os.remove(temp_zip_path)
         raise HTTPException(status_code=400, detail=f"Failed to extract zip file: {exc}") from exc

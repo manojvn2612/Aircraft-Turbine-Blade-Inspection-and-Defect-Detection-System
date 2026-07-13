@@ -92,7 +92,7 @@ def _preprocess(image_bgr, img_size=512):
     return tensor, enhanced
 
 
-def _postprocess(pred_probs, enhanced_bgr, img_size, threshold, min_area):
+def _postprocess(pred_probs, enhanced_bgr, img_size, threshold, min_area=500):
     """
     Convert raw sigmoid probabilities → detections + annotated BGR image.
 
@@ -165,7 +165,7 @@ def _postprocess(pred_probs, enhanced_bgr, img_size, threshold, min_area):
     return vis_bgr, detections, class_masks
 
 
-def predict(image_bgr, img_size=512, threshold=0.6, min_area=200, return_masks=False):
+def predict(image_bgr, img_size=512, threshold=0.6, min_area=500, return_masks=False):
     """
     Main prediction entry-point used by model.py.
 

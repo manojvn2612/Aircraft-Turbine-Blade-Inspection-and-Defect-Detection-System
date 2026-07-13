@@ -620,6 +620,42 @@ body {
   overflow: hidden;
 }
 
+.reviewActions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 12px 0;
+  background: #f9fafb;
+}
+
+.markBtn {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.markBtn.clear {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.markBtn.defect {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.markBtn.retrain {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.markBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .dropdownToggle {
   width: 100%;
   display: flex;

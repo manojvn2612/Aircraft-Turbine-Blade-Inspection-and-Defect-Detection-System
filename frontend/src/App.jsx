@@ -460,11 +460,6 @@ function SelectPage({
             </p>
           </button>
 
-          <button className="card" onClick={handleRunLabeling} disabled={labelingBusy}>
-            <FiPlay className="icon upload" />
-            <h3>Label</h3>
-            <p>Start labeling and open the upload folder for easy image drop-in</p>
-          </button>
         </div>
 
         <div className="modelActions">
@@ -831,204 +826,6 @@ function ImagesPage({
   onBack,
   onViewDetails,
 }) {
-  const [generatingReport, setGeneratingReport] = useState(false);
-
-  function extractConfidence(defect) {
-    if (!defect || typeof defect !== "object") return null;
-    const key = ["confidence", "score", "conf"].find((k) => k in defect);
-    if (!key) return null;
-    const val = defect[key];
-    return typeof val === "number" ? `${(val * 100).toFixed(1)}%` : val;
-  }
-
-  function predictedImageSrc(data) {
-    if (!data) return null;
-    const filename = data.result_filename || `predicted_${data.filename || ""}`;
-    if (!filename) return null;
-    return `${API}/results/${encodeURIComponent(filename)}`;
-  }
-
-  async function fetchImageAsDataUrl(url) {
-    const res = await fetch(url, { credentials: "include" });
-    if (!res.ok) throw new Error(`Failed to fetch image (${res.status})`);
-    const blob = await res.blob();
-
-    const dataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-
-    // jsPDF needs an explicit format (JPEG/PNG/etc) - derive it from the
-    // blob's mime type rather than relying on auto-detection, which can
-    // silently fail for some encodings.
-    let format = "JPEG";
-    if (blob.type.includes("png")) format = "PNG";
-    else if (blob.type.includes("webp")) format = "WEBP";
-    else if (blob.type.includes("jpeg") || blob.type.includes("jpg")) format = "JPEG";
-
-    return { dataUrl, format };
-  }
-
-  const doneCount = images.filter(
-    (name) => predictions[name]?.status === "done"
-  ).length;
-
-  async function generateReport() {
-    setGeneratingReport(true);
-
-    try {
-      const doc = new jsPDF({ unit: "pt", format: "a4" });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 40;
-      const contentWidth = pageWidth - margin * 2;
-      let y = 50;
-
-      doc.setFontSize(18);
-      doc.setFont(undefined, "bold");
-      doc.text("Blade Defect Detection Report", margin, y);
-      y += 20;
-
-      doc.setFontSize(10);
-      doc.setFont(undefined, "normal");
-      doc.setTextColor(120);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
-      if (folderName) {
-        y += 14;
-        doc.text(`Folder: ${folderName}`, margin, y);
-      }
-      doc.setTextColor(0);
-      y += 24;
-
-      doc.setDrawColor(220);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 24;
-
-      for (const name of images) {
-        const pred = predictions[name];
-        const isDone = pred?.status === "done";
-
-        // Reserve roughly the height of an image block; start a fresh
-        // page if there isn't enough room left, same idea as the review
-        // page's stacked cards.
-        const imageBlockHeight = 200;
-        if (y + imageBlockHeight > pageHeight - 60) {
-          doc.addPage();
-          y = 50;
-        }
-
-        doc.setFontSize(13);
-        doc.setFont(undefined, "bold");
-        doc.setTextColor(0);
-        doc.text(name, margin, y);
-        y += 18;
-
-        if (!isDone) {
-          doc.setFontSize(10);
-          doc.setFont(undefined, "normal");
-          doc.setTextColor(150);
-          doc.text(
-            pred?.status === "error"
-              ? "Prediction failed for this image."
-              : "No prediction available.",
-            margin,
-            y
-          );
-          doc.setTextColor(0);
-          y += 26;
-          continue;
-        }
-
-        const data = pred.data;
-
-        // Same image the review page shows: predicted/annotated image,
-        // falling back to the original upload.
-        const src =
-          predictedImageSrc(data) || `${API}/images/${encodeURIComponent(name)}`;
-
-        try {
-          const { dataUrl, format } = await fetchImageAsDataUrl(src);
-
-          // Figure out a reasonable display size that fits the page width
-          // while roughly preserving aspect ratio.
-          const imgProps = doc.getImageProperties(dataUrl);
-          const maxImgWidth = contentWidth;
-          const maxImgHeight = 220;
-          let imgWidth = maxImgWidth;
-          let imgHeight = (imgProps.height / imgProps.width) * imgWidth;
-
-          if (imgHeight > maxImgHeight) {
-            imgHeight = maxImgHeight;
-            imgWidth = (imgProps.width / imgProps.height) * imgHeight;
-          }
-
-          if (y + imgHeight > pageHeight - 60) {
-            doc.addPage();
-            y = 50;
-          }
-
-          doc.addImage(dataUrl, format, margin, y, imgWidth, imgHeight);
-          y += imgHeight + 14;
-        } catch (imgErr) {
-          console.log("Image embed failed for", name, imgErr);
-          doc.setFontSize(10);
-          doc.setTextColor(200, 0, 0);
-          doc.text(`(Image could not be embedded: ${imgErr.message || "unknown error"})`, margin, y);
-          doc.setTextColor(0);
-          y += 18;
-        }
-
-        // Summary line: defect count, same as the review page's dropdown header.
-        doc.setFontSize(11);
-        doc.setFont(undefined, "bold");
-        const summary =
-          data.defect_count > 0
-            ? `${data.defect_count} defect(s) found`
-            : "No defects found";
-        doc.text(summary, margin, y);
-        y += 16;
-
-        // Defect list with confidence, same as the review page's expanded panel.
-        doc.setFontSize(10);
-        doc.setFont(undefined, "normal");
-
-        if (Array.isArray(data.defects) && data.defects.length > 0) {
-          data.defects.forEach((d) => {
-            if (y > pageHeight - 60) {
-              doc.addPage();
-              y = 50;
-            }
-            const conf = extractConfidence(d);
-            const line = `  • ${d.defect_name || "Unknown"}${
-              conf ? `  —  confidence: ${conf}` : ""
-            }`;
-            doc.text(line, margin, y);
-            y += 14;
-          });
-        } else {
-          doc.setTextColor(150);
-          doc.text("No defects detected on this image.", margin, y);
-          doc.setTextColor(0);
-          y += 14;
-        }
-
-        y += 16;
-        doc.setDrawColor(235);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 24;
-      }
-
-      doc.save(`blade-defect-report-${Date.now()}.pdf`);
-    } catch (err) {
-      console.log(err);
-      alert("Couldn't generate the report. Check the console for details.");
-    } finally {
-      setGeneratingReport(false);
-    }
-  }
-
   return (
     <main className="imagesMain">
       <div className="imagesHeader">
@@ -1063,15 +860,6 @@ function ImagesPage({
           >
             <FiPlay />
             {predicting ? "Predicting…" : "Predict All"}
-          </button>
-
-          <button
-            className="reportBtn"
-            onClick={generateReport}
-            disabled={doneCount === 0 || generatingReport}
-          >
-            <FiFileText />
-            {generatingReport ? "Generating…" : "Make Report"}
           </button>
         </div>
       </div>
@@ -1114,6 +902,8 @@ function ImagesPage({
 
 function ReviewPage({ folderName, images, predictions, onBack }) {
   const [openDropdown, setOpenDropdown] = useState({}); // filename -> bool
+  const [markingState, setMarkingState] = useState({});
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   function extractConfidence(defect) {
     if (!defect || typeof defect !== "object") return null;
@@ -1134,6 +924,190 @@ function ReviewPage({ folderName, images, predictions, onBack }) {
     setOpenDropdown((prev) => ({ ...prev, [name]: !prev[name] }));
   }
 
+  async function fetchImageAsDataUrl(url) {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) throw new Error(`Failed to fetch image (${res.status})`);
+    const blob = await res.blob();
+
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+    let format = "JPEG";
+    if (blob.type.includes("png")) format = "PNG";
+    else if (blob.type.includes("webp")) format = "WEBP";
+    else if (blob.type.includes("jpeg") || blob.type.includes("jpg")) format = "JPEG";
+
+    return { dataUrl, format };
+  }
+
+  async function generateReport() {
+    setGeneratingReport(true);
+
+    try {
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 40;
+      const contentWidth = pageWidth - margin * 2;
+      const imageColWidth = 220;
+      const defectColWidth = contentWidth - imageColWidth - 24;
+      let y = 48;
+
+      doc.setFontSize(18);
+      doc.setFont(undefined, "bold");
+      doc.text("Blade Defect Detection Report", margin, y);
+      y += 18;
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, "normal");
+      doc.setTextColor(120);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+      if (folderName) {
+        y += 14;
+        doc.text(`Folder: ${folderName}`, margin, y);
+      }
+      doc.setTextColor(0);
+      y += 22;
+
+      doc.setDrawColor(220);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 20;
+
+      for (const name of images) {
+        const pred = predictions[name];
+        const isDone = pred?.status === "done";
+        const data = isDone ? pred.data : null;
+
+        const rowHeight = isDone
+          ? 160 + Math.max(0, (data?.defects?.length || 0) * 12)
+          : 110;
+
+        if (y + rowHeight > pageHeight - 40) {
+          doc.addPage();
+          y = 48;
+        }
+
+        doc.setDrawColor(220);
+        doc.roundedRect(margin, y, contentWidth, rowHeight, 8, 8, "S");
+        doc.setDrawColor(230);
+        doc.line(margin + imageColWidth + 12, y, margin + imageColWidth + 12, y + rowHeight);
+
+        doc.setFontSize(12);
+        doc.setFont(undefined, "bold");
+        doc.text(name, margin + 12, y + 18);
+
+        if (!isDone || !data) {
+          doc.setFontSize(10);
+          doc.setFont(undefined, "normal");
+          doc.setTextColor(140);
+          const note = pred?.status === "error"
+            ? "Prediction failed for this image."
+            : "No prediction available.";
+          doc.text(note, margin + imageColWidth + 24, y + 30);
+          doc.setTextColor(0);
+          y += rowHeight + 16;
+          continue;
+        }
+
+        const src = predictedImageSrc(data) || `${API}/images/${encodeURIComponent(name)}`;
+
+        try {
+          const { dataUrl, format } = await fetchImageAsDataUrl(src);
+          const imgProps = doc.getImageProperties(dataUrl);
+          const maxImgHeight = rowHeight - 36;
+          const maxImgWidth = imageColWidth - 24;
+          let imgWidth = maxImgWidth;
+          let imgHeight = (imgProps.height / imgProps.width) * imgWidth;
+
+          if (imgHeight > maxImgHeight) {
+            imgHeight = maxImgHeight;
+            imgWidth = (imgProps.width / imgProps.height) * imgHeight;
+          }
+
+          doc.addImage(
+            dataUrl,
+            format,
+            margin + 12,
+            y + 26,
+            imgWidth,
+            imgHeight
+          );
+        } catch (imgErr) {
+          console.log("Image embed failed for", name, imgErr);
+          doc.setFontSize(10);
+          doc.setTextColor(200, 0, 0);
+          doc.text(`Image could not be embedded.`, margin + 12, y + 36);
+          doc.setTextColor(0);
+        }
+
+        const summary = data.defect_count > 0
+          ? `${data.defect_count} defect(s) found`
+          : "No defects found";
+        doc.setFontSize(11);
+        doc.setFont(undefined, "bold");
+        doc.text(summary, margin + imageColWidth + 24, y + 28);
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, "normal");
+        const lines = [];
+        if (Array.isArray(data.defects) && data.defects.length > 0) {
+          data.defects.forEach((d) => {
+            const conf = extractConfidence(d);
+            lines.push(`${d.defect_name || "Unknown"}${conf ? ` (${conf})` : ""}`);
+          });
+        } else {
+          lines.push("No defects detected on this image.");
+        }
+
+        const wrapped = doc.splitTextToSize(lines.join("\n"), defectColWidth - 12);
+        doc.text(wrapped, margin + imageColWidth + 24, y + 48);
+
+        y += rowHeight + 16;
+      }
+
+      doc.save(`blade-defect-report-${Date.now()}.pdf`);
+    } catch (err) {
+      console.log(err);
+      alert("Couldn't generate the report. Check the console for details.");
+    } finally {
+      setGeneratingReport(false);
+    }
+  }
+
+  async function markImage(name, decision) {
+    const pred = predictions[name];
+    if (!pred?.data) return;
+
+    setMarkingState((prev) => ({ ...prev, [name]: "loading" }));
+
+    try {
+      const res = await fetch(`${API}/mark-image-status`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: name,
+          decision,
+          result_filename: pred.data.result_filename || null,
+          defect_names: (pred.data.defects || []).map((d) => d.defect_name),
+          defect_count: pred.data.defect_count || 0,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to mark image");
+
+      setMarkingState((prev) => ({ ...prev, [name]: data.status || decision }));
+    } catch (err) {
+      console.error(err);
+      setMarkingState((prev) => ({ ...prev, [name]: "error" }));
+    }
+  }
+
   return (
     <main className="reviewMain">
       <div className="imagesHeader">
@@ -1150,6 +1124,15 @@ function ReviewPage({ folderName, images, predictions, onBack }) {
             </p>
           )}
         </div>
+
+        <button
+          className="reportBtn"
+          onClick={generateReport}
+          disabled={images.length === 0 || generatingReport}
+        >
+          <FiFileText />
+          {generatingReport ? "Generating…" : "Make Report"}
+        </button>
       </div>
 
       {images.length === 0 && (
@@ -1193,6 +1176,30 @@ function ReviewPage({ folderName, images, predictions, onBack }) {
 
                 {isDone && (
                   <div className="defectDropdown">
+                    <div className="reviewActions">
+                      <button
+                        className="markBtn clear"
+                        onClick={() => markImage(name, "clear")}
+                        disabled={markingState[name] === "loading"}
+                      >
+                        {markingState[name] === "loading" ? "Processing…" : "Clear"}
+                      </button>
+                      <button
+                        className="markBtn defect"
+                        onClick={() => markImage(name, "defective")}
+                        disabled={markingState[name] === "loading"}
+                      >
+                        {markingState[name] === "loading" ? "Processing…" : "Defective"}
+                      </button>
+                      <button
+                        className="markBtn retrain"
+                        onClick={() => markImage(name, "retrain")}
+                        disabled={markingState[name] === "loading"}
+                      >
+                        {markingState[name] === "loading" ? "Processing…" : "Retrain"}
+                      </button>
+                    </div>
+
                     <button
                       className="dropdownToggle"
                       onClick={() => toggleDropdown(name)}
