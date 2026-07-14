@@ -58,6 +58,16 @@ def _extract_zip_file(archive_path: str, destination: str):
         zf.extractall(destination)
 
 
+def _clear_folder_contents(path: str):
+    os.makedirs(path, exist_ok=True)
+    for item in os.listdir(path):
+        item_path = os.path.join(path, item)
+        if os.path.isdir(item_path):
+            shutil.rmtree(item_path, ignore_errors=True)
+        else:
+            os.remove(item_path)
+
+
 def _open_folder(path: str):
     if platform.system() == "Windows":
         os.startfile(path)
@@ -520,6 +530,9 @@ async def retrain_endpoint(
     session_id, needs_refresh = session_data
 
     result = await asyncio.to_thread(retrain)
+
+    await asyncio.to_thread(_clear_folder_contents, RETRAIN_DIR)
+    await asyncio.to_thread(_clear_folder_contents, QUICK_UPLOAD_DIR)
 
     return {
         "message": "Retraining completed",
