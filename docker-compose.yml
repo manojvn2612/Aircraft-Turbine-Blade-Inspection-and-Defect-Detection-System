@@ -1,35 +1,59 @@
-version: "3.9"
+# ============================================================================
+# Aircraft Turbine Blade Inspection & Defect Detection System
+# Start everything:  docker compose up --build
+# Stop everything:   docker compose down
+# ============================================================================
 
 services:
-
-  backend:
-
+  # ── YOLO Body/Blade Segmentation Microservice (internal port 5001) ────────
+  body_server:
     build:
-      context: ./backend
-
-    container_name: blade-defect-backend
-
-    env_file:
-      - .env
-
-    environment:
-      HOST: ${HOST}
-      PORT: ${MAIN_PORT}
-      SECRET_KEY: ${SECRET_KEY}
-
-      WORK_DIR: ${WORK_DIR}
-
-      STORAGE_DIR: ${STORAGE_DIR}
-      RESULT_DIR: ${RESULT_DIR}
-      UPLOAD_DIR: ${UPLOAD_DIR}
-      RETRAIN_DIR: ${RETRAIN_DIR}
-
-    ports:
-      - "${DOCKER_BIND_IP}:${MAIN_PORT}:${MAIN_PORT}"
-
-    volumes:
-      - ./storage:/app/storage
-      - ./models:/app/models
-      - ./quick_uploads:/app/quick_uploads
-
+      context: ./body_server
+    container_name: bfl-body-server
     restart: unless-stopped
+    expose:
+      - "5001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ── Main Backend — HRNet defect detection + all API routes (port 5000) ────
+  main_server:
+    build:
+      context: ./main_server
+    container_name: bfl-main-server
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - BODY_SERVER_URL=http://body_server:5001/detect
+    depends_on:
+      body_server:
+        condition: service_healthy
+    volumes:
+      - app-outputs:/app/outputs
+      - retrain-data:/app/retrain_data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost',5000),timeout=5); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  # ── React Frontend served by Nginx (port 80) ─────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+    container_name: bfl-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - main_server
+
+volumes:
+  app-outputs:
+  retrain-data:
