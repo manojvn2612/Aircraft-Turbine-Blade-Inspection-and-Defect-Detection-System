@@ -9,8 +9,8 @@ import {
   FiCheckCircle,
   FiAlertTriangle,
   FiRefreshCw,
-  FiSettings,
-  FiFolder,
+  FiSun,
+  FiMoon,
 } from "react-icons/fi";
 import jsPDF from "jspdf";
 import "./App.css";
@@ -22,7 +22,16 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [session, setSession] = useState("");
   const [folderName, setFolderName] = useState("");
-  const [zoom, setZoom] = useState(100);
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = window.localStorage.getItem("bladeDefectDarkMode");
+    if (saved !== null) return saved === "true";
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem("bladeDefectDarkMode", String(darkMode));
+  }, [darkMode]);
 
   const [images, setImages] = useState([]);
   const [imagesLoading, setImagesLoading] = useState(false);
@@ -41,14 +50,6 @@ export default function App() {
 
   const sessionStarted = useRef(false);
   const fileInputRef = useRef(null);
-
-  function zoomIn() {
-    setZoom((z) => Math.min(z + 10, 150));
-  }
-
-  function zoomOut() {
-    setZoom((z) => Math.max(z - 10, 80));
-  }
 
   useEffect(() => {
     if (sessionStarted.current) return;
@@ -299,29 +300,37 @@ async function startRetraining() {
   }
 
   return (
-    <div className="app" style={{ "--zoom": zoom / 100 }}>
+    <div className={`app${darkMode ? " dark" : ""}`}>
       {/* Header */}
       <header className="header">
         <div className="logo">
-          <div className="logoBox">✈</div>
+          <div className="logoBox">
+            <svg viewBox="0 0 42 42" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+              <g transform="translate(21,20)">
+                <path d="M -11 -9 L 12 0 L -11 9 L -6 0 Z" fill="white" />
+                <circle cx="4" cy="4" r="7" fill="none" stroke="white" strokeWidth="1.7" />
+                <line x1="9" y1="9" x2="13.5" y2="13.5" stroke="white" strokeWidth="1.9" strokeLinecap="round" />
+              </g>
+            </svg>
+          </div>
 
           <div className="logoText">
-            <h2>Blade</h2>
-            <h2>Defect</h2>
-            <h2>Detection</h2>
+            <span className="logoKicker">AI-Powered Inspection</span>
+            <h2>
+              Blade<span className="logoAccent">Defect</span>
+            </h2>
           </div>
         </div>
 
         <div className="headerRight">
-          <div className="zoomControl">
-            <button onClick={zoomOut} aria-label="Zoom out">
-              −
-            </button>
-            <span>{zoom}%</span>
-            <button onClick={zoomIn} aria-label="Zoom in">
-              +
-            </button>
-          </div>
+          <button
+            className="themeToggle"
+            onClick={() => setDarkMode((d) => !d)}
+            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {darkMode ? <FiSun /> : <FiMoon />}
+          </button>
         </div>
       </header>
 
@@ -427,8 +436,8 @@ function SelectPage({
 
   return (
     <main className="main">
-      <div className="grid"></div>
-
+      <div className="glow" />
+      <div className="grid" />
       <div className="content">
         <h1>Choose Inspection Mode</h1>
         <p>How would you like to inspect the blade?</p>
@@ -583,10 +592,10 @@ function RetrainPage({ retrainStatus, retrainProgress, retrainMessage, retrainRe
   const [saveMessage, setSaveMessage] = useState("");
   const [uploadingZip, setUploadingZip] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
-  const [launchingLabeling, setLaunchingLabeling] = useState(false);
-  const [labelingMessage, setLabelingMessage] = useState("");
-  const [showStepOnePrompt, setShowStepOnePrompt] = useState(false);
-  const [showStepTwoPrompt, setShowStepTwoPrompt] = useState(false);
+  // const [launchingLabeling, setLaunchingLabeling] = useState(false);
+  // const [labelingMessage, setLabelingMessage] = useState("");
+  // const [showStepOnePrompt, setShowStepOnePrompt] = useState(false);
+  // const [showStepTwoPrompt, setShowStepTwoPrompt] = useState(false);
   const zipInputRef = useRef(null);
 
   async function handleSaveModel() {
@@ -638,29 +647,29 @@ function RetrainPage({ retrainStatus, retrainProgress, retrainMessage, retrainRe
     }
   }
 
-  async function handleStartLabeling() {
-    setLaunchingLabeling(true);
-    setLabelingMessage("");
+  // async function handleStartLabeling() {
+  //   setLaunchingLabeling(true);
+  //   setLabelingMessage("");
 
-    try {
-      const res = await fetch(`${API}/start-labeling`, {
-        method: "POST",
-        credentials: "include",
-      });
+  //   try {
+  //     const res = await fetch(`${API}/start-labeling`, {
+  //       method: "POST",
+  //       credentials: "include",
+  //     });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to start labeling tool");
+  //     const data = await res.json();
+  //     if (!res.ok) throw new Error(data.detail || "Failed to start labeling tool");
 
-      setShowStepOnePrompt(true);
-      setShowStepTwoPrompt(false);
-      setLabelingMessage(data.message || "Labeling tool started.");
-    } catch (err) {
-      console.error(err);
-      setLabelingMessage(err.message || "Failed to start labeling tool.");
-    } finally {
-      setLaunchingLabeling(false);
-    }
-  }
+  //     setShowStepOnePrompt(true);
+  //     setShowStepTwoPrompt(false);
+  //     setLabelingMessage(data.message || "Labeling tool started.");
+  //   } catch (err) {
+  //     console.error(err);
+  //     setLabelingMessage(err.message || "Failed to start labeling tool.");
+  //   } finally {
+  //     setLaunchingLabeling(false);
+  //   }
+  // }
 
   const isRetrainBusy = retrainStatus === "starting" || retrainStatus === "running";
   const isAccepted = retrainResult?.is_updated === true;
@@ -707,7 +716,7 @@ function RetrainPage({ retrainStatus, retrainProgress, retrainMessage, retrainRe
           {uploadMessage && <p className="retrainMessage">{uploadMessage}</p>}
         </div>
 
-        <div className="zipUploadBox">
+        {/* <div className="zipUploadBox">
           <h3>Open Labeling Tool</h3>
           <p>Launch the labeling workflow and follow the prompts to add all files and blade labels.</p>
           <button className="launchLabelingBtn" onClick={handleStartLabeling} disabled={launchingLabeling}>
@@ -715,9 +724,9 @@ function RetrainPage({ retrainStatus, retrainProgress, retrainMessage, retrainRe
             {launchingLabeling ? "Starting…" : "Run Labeling"}
           </button>
           {labelingMessage && <p className="retrainMessage">{labelingMessage}</p>}
-        </div>
+        </div> */}
 
-        {showStepOnePrompt && (
+        {/* {showStepOnePrompt && (
           <div className="modalOverlay">
             <div className="modalCard">
               <h3>Add files to labeling</h3>
@@ -746,7 +755,7 @@ function RetrainPage({ retrainStatus, retrainProgress, retrainMessage, retrainRe
               </div>
             </div>
           </div>
-        )}
+        )} */}
 
         {retrainStatus !== "idle" && (
           <div className="retrainStatusBlock">
